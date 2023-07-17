@@ -7,6 +7,9 @@
 ## COMMENTs:                                                 ##
 ## Last Modified Date: 07.11.2023                            ##
 ###############################################################
+# Default values
+username=()
+
 vaultClose(){
   bw sync
   bw logout
@@ -14,6 +17,24 @@ vaultClose(){
 
 vaultSync(){
   bw sync
+}
+
+vaultLogin(){
+  # Login to Bitwarden and capture the session key
+  BW_LOGIN_OUTPUT=$(bw login $email $password)
+
+  # Extracting the BW_SESSION string using pattern matching and parameter expansion
+  if [ $? -eq 0 ] && [[ $BW_LOGIN_OUTPUT =~ BW_SESSION=\"([^\"]+)\" ]]; then
+    echo "Bitwarden login successful!"
+    echo "Output: $BW_LOGIN_OUTPUT"
+    bw_session="${BASH_REMATCH[1]}"
+    echo "bw session key: $bw_session"  # Outputs "Tp2zk7AMyZif6d6iQZcM99TaSOPxdNPi67DydWuN0suMgbvHW0OJrW2W6FV8RFnk2lLu9xI4vxyV84hY+mQp2g=="
+  else
+    echo "Bitwarden login failed!"
+  fi
+
+  #unlock vault
+  export BW_SESSION="$bw_session"
 }
 
 createFolder(){
@@ -57,6 +78,9 @@ listItems(){
    id=$(jq '.[].id' <<< "$items")
    paste <(printf "%s\n" "${names[@]}") <(printf "%s\n" "${id[@]}")
 }
+
+backup(){
+
 # username and password input
 echo ">>> Meta Scientific using bitwarden manage your account and password <<<"
 echo ">>> Your email alias will your username <<<"
@@ -79,25 +103,51 @@ else
   echo "Invalid email address."
 fi
 
-# Login to Bitwarden and capture the session key
-BW_LOGIN_OUTPUT=$(bw login $email $password)
+}
 
-# Extracting the BW_SESSION string using pattern matching and parameter expansion
-if [ $? -eq 0 ] && [[ $BW_LOGIN_OUTPUT =~ BW_SESSION=\"([^\"]+)\" ]]; then
-    echo "Bitwarden login successful!"
-    echo "Output: $BW_LOGIN_OUTPUT"
-    bw_session="${BASH_REMATCH[1]}"
-    echo "bw session key: $bw_session"  # Outputs "Tp2zk7AMyZif6d6iQZcM99TaSOPxdNPi67DydWuN0suMgbvHW0OJrW2W6FV8RFnk2lLu9xI4vxyV84hY+mQp2g=="
-else
-  echo "Bitwarden login failed!"
+setUserName(){
+  echo "Your User Name: ${username[0]} being set to /root/USERNAMES"
+  echo "${username[0]}" >> /root/USERNAMES
+}
 
-fi
+getUserName(){
+  # Define the file path
+  file_path="/root/USERNAMES"
+  # Read the file line by line and store each line in the array
+  while IFS= read -r usernameS; do
+    username+=("$usernameS")
+  done < "$file_path"
 
-#unlock vault
-export BW_SESSION="$bw_session"
+  # Print the array elements
+  for usernameS in "${username[@]}"; do
+    echo "$usernameS"
+  done
+}
 
 #createLogin
-createIdentity
+#createIdentity
 #listItems
 
-vaultClose
+#vaultClose
+
+# Function to display script usage
+usage() {
+    echo "Usage: $0 --setUserName value or --getUserName"
+}
+
+# Parse command-line arguments
+case $1 in
+  --setUserName)
+    username+=("$2")
+    setUserName
+    shift
+    ;;
+  --getUserName)
+    getUserName
+    shift
+    ;;
+  *)
+    usage
+    exit 1
+    ;;
+esac
