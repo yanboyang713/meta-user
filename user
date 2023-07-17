@@ -1,0 +1,103 @@
+#!/bin/bash
+###############################################################
+## AUTHOR Name: Boyang Yan                                   ##
+## KEYWORDs: user management                                 ##
+## PURPOSE:                                                  ##
+## ENVIRONment: mac, Linux                                   ##
+## COMMENTs:                                                 ##
+## Last Modified Date: 07.11.2023                            ##
+###############################################################
+vaultClose(){
+  bw sync
+  bw logout
+}
+
+vaultSync(){
+  bw sync
+}
+
+createFolder(){
+  bw get folder Meta-Scientific-Linux
+  bw get template folder | jq '.name="Meta-Scientific-Linux"' | bw encode | bw create folder
+}
+
+test(){
+  bw get template item | jq '.type = 2 | .secureNote.type = 0 | .notes = "Contents of my Secure Note." | .name = "My Secure Note"' | bw encode | bw create item
+  bw get template item.securenote
+
+  bw get template item | jq ".name=\"My Login Item\" | .login=$(bw get template item.login | jq '.username="jdoe" | .password="myp@ssword123"')" | bw encode | bw create item
+  bw get template item.login
+
+  bw get template item | jq '.type = 4 | .title = "Mr" | .firstName = "Boyang" | .lastName = "Yan"' | bw encode | bw create item
+  bw get template item.identity
+
+}
+
+createIdentity(){
+  read -p 'Item Name: ' itemname
+  itemname=\"$itemname\"
+  bw get template item.identity
+
+  bw get template item | jq ".name=$itemname | .identity=$(bw get template item.identity | jq '.title="Mr" | .firstName="Boyang"')" | bw encode | bw create item
+}
+
+createLogin(){
+   read -p 'Item Name: ' itemname
+   read -p 'Username: ' username
+   read -p 'Password: ' password
+   itemname=\"$itemname\"
+   username=\"$username\"
+   password=\"$password\"
+   bw get template item | jq ".name=$itemname | .login=$(bw get template item.login | jq '.username='$username' | .password='$password'')" | bw encode | bw create item
+}
+
+listItems(){
+   items=$(bw list items)
+   names=$(jq '.[].name' <<< "$items")
+   id=$(jq '.[].id' <<< "$items")
+   paste <(printf "%s\n" "${names[@]}") <(printf "%s\n" "${id[@]}")
+}
+# username and password input
+echo ">>> Meta Scientific using bitwarden manage your account and password <<<"
+echo ">>> Your email alias will your username <<<"
+echo ">>> Your root and user's password will be your bitwarden Master password <<<"
+
+# Prompt the user to enter an email address
+read -r -p "Enter your bitwarden email address: " email < /dev/tty
+read -r -p "Enter your bitwarden master password: " password < /dev/tty
+
+# Define the regular expression pattern to match the email alias
+pattern="^[^@]+"
+
+# Extract the alias using the regular expression
+if [[ $email =~ $pattern ]]; then
+  alias="${BASH_REMATCH[0]}"
+  echo "Email alias: $alias"
+  # Write the alias to the file
+  echo "$alias" >> /root/USERNAMES
+else
+  echo "Invalid email address."
+fi
+
+# Login to Bitwarden and capture the session key
+BW_LOGIN_OUTPUT=$(bw login $email $password)
+
+# Extracting the BW_SESSION string using pattern matching and parameter expansion
+if [ $? -eq 0 ] && [[ $BW_LOGIN_OUTPUT =~ BW_SESSION=\"([^\"]+)\" ]]; then
+    echo "Bitwarden login successful!"
+    echo "Output: $BW_LOGIN_OUTPUT"
+    bw_session="${BASH_REMATCH[1]}"
+    echo "bw session key: $bw_session"  # Outputs "Tp2zk7AMyZif6d6iQZcM99TaSOPxdNPi67DydWuN0suMgbvHW0OJrW2W6FV8RFnk2lLu9xI4vxyV84hY+mQp2g=="
+else
+  echo "Bitwarden login failed!"
+
+fi
+
+#unlock vault
+export BW_SESSION="$bw_session"
+
+#createLogin
+createIdentity
+#listItems
+
+vaultClose
